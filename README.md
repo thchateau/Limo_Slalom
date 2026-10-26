@@ -427,3 +427,50 @@ import os
 (os.path.join('share', package_name, 'launch'),
  glob(os.path.join('launch', '*.launch.py'))),
 ```
+
+## Annexe — Redémarrer Gazebo après un arrêt incomplet
+
+Si le lancement affiche simultanément :
+
+```text
+gzserver ... process has died ... exit code 255
+Spawn status: Entity [limo] already exists
+```
+
+un ancien serveur Gazebo fonctionne encore en arrière-plan. Il garde l'entité `limo` et le
+service `/spawn_entity`, tandis que le nouveau serveur ne peut pas démarrer.
+
+1. Arrêtez tous les terminaux ayant lancé Gazebo avec `Ctrl+C`.
+2. Listez les processus Gazebo restants :
+
+   ```bash
+   ps -ef | grep -E '[g]zserver|[g]zclient'
+   ```
+
+3. Arrêtez uniquement les PID affichés par cette commande :
+
+   ```bash
+   kill <pid_gzserver> <pid_gzclient>
+   ```
+
+4. Vérifiez qu'aucun serveur précédent ne publie encore le service de création d'entités :
+
+   ```bash
+   ros2 service list | grep spawn_entity
+   ```
+
+   La commande ne doit rien afficher avant un nouveau lancement.
+
+5. Relancez l'arène. Attendez le message suivant avant de démarrer votre contrôleur dans un
+   second terminal :
+
+   ```text
+   Spawn status: SpawnEntity: Successfully spawned entity [limo]
+   ```
+
+Si `gzserver` quitte encore, consultez les dernières lignes de son journal. Le chemin du dossier
+de logs est affiché au début du lancement :
+
+```bash
+tail -n 80 ~/.ros/log/<dossier-du-lancement>/gzserver-*.log
+```
