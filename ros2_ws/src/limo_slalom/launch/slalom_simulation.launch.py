@@ -31,6 +31,7 @@ def generate_launch_description():
                 'spawn_y_val': '0.0',
                 'spawn_z_val': '0.0',
                 'spawn_yaw_val': '0.0',
+                'robot_name': 'limo',
             }.items(),
         ),
         Node(
