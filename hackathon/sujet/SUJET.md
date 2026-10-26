@@ -71,6 +71,26 @@ La sécurité est prioritaire sur la performance.
 Une collision, une perte de contrôle ou une intervention de sécurité arrête immédiatement la
 manche.
 
+## Contrat d'exécution de la finale
+
+Votre livrable sera exécuté sur une machine distincte, avec un monde Gazebo nouveau détenu par
+l'équipe enseignante. Le simulateur, les positions des portes et l'évaluateur ne seront pas
+accessibles dans votre dépôt ni dans votre espace ROS2.
+
+Votre application doit donc être une pile de décision autonome qui :
+
+- consomme uniquement les interfaces ROS2 autorisées, en particulier `/scan` et `/clock` ;
+- publie sa seule commande de mouvement sur `/cmd_vel` ;
+- fonctionne sans fichier de monde, coordonnées de portes, service Gazebo ou topic de vérité
+  terrain ;
+- ne lance pas Gazebo, ne lance pas `limo_simulation` et ne crée pas le robot ;
+- démarre avec `use_sim_time:=true` ;
+- s'arrête avec une commande nulle si la perception est absente, invalide ou trop ancienne.
+
+Le jury lance le monde, le Limo et l'évaluateur de son côté. Il relie ensuite les interfaces
+capteurs/commande à votre application. Ne supposez pas que des topics Gazebo tels que
+`/gazebo/model_states` sont disponibles.
+
 ## Attendus techniques
 
 Votre système doit être découpé en composants dont la responsabilité est claire. Vous choisissez
@@ -191,16 +211,35 @@ relire, tester et annuler.
 
 Avant la finale, votre dépôt doit contenir :
 
-- le ou les paquets ROS2 développés par l'équipe ;
+- le ou les paquets ROS2 développés par l'équipe, avec toutes les dépendances déclarées dans les
+  fichiers `package.xml` et `setup.py` ou `CMakeLists.txt` ;
 - un `README.md` expliquant l'installation, la compilation et la commande de lancement ;
 - un schéma de l'architecture ROS2 (nœuds, topics et flux principaux) ;
 - les paramètres de réglage et leur signification ;
-- un launch permettant de lancer la démonstration ;
+- un launch de finale permettant de démarrer la pile étudiante seule, sans monde ni robot, par
+  exemple `ros2 launch <votre_package> final.launch.py use_sim_time:=true` ;
 - le backlog final et `RETROSPECTIVE.md` ;
 - une courte vidéo de la simulation ou des essais si le temps le permet.
 
-La démonstration finale dure cinq minutes : lancement du système, exécution sur un monde inédit
-et réponse aux questions techniques.
+Votre dépôt doit permettre au jury d'exécuter, depuis un workspace propre :
+
+```bash
+source /opt/ros/humble/setup.bash
+colcon build --packages-select <votre_package>
+source install/setup.bash
+ros2 launch <votre_package> final.launch.py use_sim_time:=true
+```
+
+Le README doit indiquer le nom exact du package, la commande de lancement et les topics
+consommés/publiés. Il ne doit demander aucune action manuelle après le lancement ni dépendre de
+chemins absolus, de fichiers locaux hors dépôt ou de modules Python installés à la main.
+
+Avant le rendu, l'équipe doit tester cette procédure dans un nouveau workspace ou sur une autre
+machine. Le lancement de développement, qui démarre le monde d'entraînement, peut être conservé
+mais ne sera pas utilisé par le jury.
+
+La démonstration finale dure cinq minutes : lancement de la pile étudiante, exécution sur un
+monde inédit et réponse aux questions techniques.
 
 ## Évaluation et classement
 
@@ -217,9 +256,9 @@ et réponse aux questions techniques.
 ### Protocole de finale
 
 Chaque monde de finale est fourni au moment de l'évaluation. Les équipes lancent leur application
-avec la commande documentée dans leur `README.md`. Les portes doivent être franchies dans l'ordre
-du parcours. Une porte n'est comptée que si le robot passe entre les deux plots sans collision ni
-intervention humaine.
+avec la commande `final.launch.py` documentée dans leur `README.md`. Les portes doivent être
+franchies dans l'ordre du parcours. Une porte n'est comptée que si le robot passe entre les deux
+plots sans collision ni intervention humaine.
 
 Une collision, une sortie durable du parcours, une perte de contrôle ou une intervention de
 sécurité arrête la manche. Les modalités pratiques (nombre de mondes, tentatives autorisées,
