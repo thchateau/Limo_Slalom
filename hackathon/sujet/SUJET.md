@@ -17,6 +17,11 @@ connaissance d'un monde particulier.
 Le transfert sur le robot réel peut être proposé lors de la restitution si le matériel et le temps
 le permettent ; il ne remplace pas l'évaluation sur les mondes inédits.
 
+![Monde d'entraînement : Limo, portes et mesures lidar](../../docs/images/ros_slalom.png)
+
+*Illustration du monde d'entraînement Gazebo. Les faisceaux bleus représentent les mesures du
+lidar utilisées pour détecter les plots.*
+
 ## Objectifs
 
 À l'issue du hackathon, vous devrez être capables de :

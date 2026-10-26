@@ -9,6 +9,10 @@ Le dépôt contient :
   de lecture du lidar ;
 - `hackathon/sujet/SUJET.md` : énoncé destiné aux étudiants.
 
+![Monde Gazebo de slalom : Limo, plots et faisceaux du lidar](docs/images/ros_slalom.png)
+
+*Monde d'entraînement Gazebo : le Limo observe les plots avec son lidar.*
+
 ## Pré-requis
 
 Le projet cible Ubuntu 22.04 avec ROS2 Humble et Gazebo Classic. Les dépendances ROS2
