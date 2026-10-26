@@ -32,12 +32,40 @@ sudo apt install \
 git clone https://github.com/thchateau/Limo_Slalom.git
 cd Limo_Slalom/ros2_ws
 source /opt/ros/humble/setup.bash
-colcon build --symlink-install
+colcon build
 source install/setup.bash
 ```
 
 Les dossiers `build`, `install` et `log` sont produits localement par `colcon` et ne doivent pas
 être ajoutés dans Git.
+
+### Cas d'un disque partagé ou monté
+
+L'option `--symlink-install` est pratique lors du développement, mais elle nécessite que le
+système de fichiers accepte les liens symboliques. Elle ne doit pas être utilisée si le dépôt est
+placé sur un dossier partagé de machine virtuelle, un disque réseau ou un volume monté tel que
+`/home/student/Disque_M`.
+
+Dans ce cas, compilez sans cette option :
+
+```bash
+cd /home/student/Disque_M/HackathonM1/Limo_Slalom/ros2_ws
+source /opt/ros/humble/setup.bash
+colcon build
+source install/setup.bash
+```
+
+Si l'erreur `Errno 95: Operation not supported` persiste, clonez le dépôt dans le répertoire
+personnel, généralement situé sur le système de fichiers Linux local :
+
+```bash
+cd ~
+git clone https://github.com/thchateau/Limo_Slalom.git
+cd ~/Limo_Slalom/ros2_ws
+source /opt/ros/humble/setup.bash
+colcon build
+source install/setup.bash
+```
 
 À chaque nouveau terminal, il faut sourcer à nouveau ROS2 et le workspace :
 
