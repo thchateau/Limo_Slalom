@@ -52,18 +52,26 @@ def generate_launch_description():
         )
     )
 
+    ld.add_action(
+        DeclareLaunchArgument(
+            name='entity_name',
+            default_value='',
+            description='Nom du modèle dans Gazebo'
+        )
+    )
+
     spawn_x_val = LaunchConfiguration('spawn_x_val')
     spawn_y_val = LaunchConfiguration('spawn_y_val')
     spawn_z_val = LaunchConfiguration('spawn_z_val')
     spawn_yaw_val = LaunchConfiguration('spawn_yaw_val')
     robot_name = LaunchConfiguration('robot_name')
+    entity_name = LaunchConfiguration('entity_name')
     urdf_model = LaunchConfiguration('urdf_model')
     use_sim_time = LaunchConfiguration('use_sim_time')
 
 
     # Constants for paths to different files and folders
     package_name = 'limo_simulation'
-    robot_name_in_model = robot_name
     urdf_file_path = 'urdf/limo_four_diff.xacro'
     pkg_share = FindPackageShare(package=package_name)
     default_urdf_model_path = os.path.join(pkg_share.find(package_name), urdf_file_path)
@@ -102,7 +110,7 @@ def generate_launch_description():
         executable='spawn_entity.py',
         namespace= robot_name,
         arguments=[
-            '-entity', robot_name_in_model,
+            '-entity', entity_name,
             '-topic', 'robot_description',
             '-x', spawn_x_val,
             '-y', spawn_y_val,
@@ -117,4 +125,3 @@ def generate_launch_description():
     ld.add_action(spawn_entity_cmd)
 
     return ld
-
