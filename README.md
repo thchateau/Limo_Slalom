@@ -51,9 +51,14 @@ Dans ce cas, compilez sans cette option :
 ```bash
 cd /home/student/Disque_M/HackathonM1/Limo_Slalom/ros2_ws
 source /opt/ros/humble/setup.bash
-colcon build
+rm -rf build install log
+colcon build --cmake-args -DAMENT_CMAKE_SYMLINK_INSTALL=OFF
 source install/setup.bash
 ```
+
+La suppression concerne uniquement les dossiers générés par `colcon`. Elle est nécessaire si une
+compilation précédente a enregistré l'option d'installation par liens symboliques dans le cache
+CMake.
 
 Si l'erreur `Errno 95: Operation not supported` persiste, clonez le dépôt dans le répertoire
 personnel, généralement situé sur le système de fichiers Linux local :
