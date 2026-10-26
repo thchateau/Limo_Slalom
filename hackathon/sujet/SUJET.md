@@ -7,10 +7,15 @@ mobile Limo. Votre mission est de lui faire franchir, de manière autonome et en
 parcours de slalom constitué de portes. Une porte est formée de deux plots. Le robot doit passer
 entre les deux plots et enchaîner les portes dans l'ordre du parcours.
 
-Le projet se réalise d'abord en simulation Gazebo, puis sur le robot réel. Le parcours, le nombre
-de portes et les dimensions sont communiqués au lancement du hackathon. Certaines manches
-comporteront des variations mineures (écartement des portes, position de départ ou ordre des
-portes) : votre logiciel ne doit donc pas dépendre de coordonnées écrites en dur.
+Le dépôt fournit un monde Gazebo d'entraînement et un exemple d'observation du lidar. La finale
+se déroule sur un ou plusieurs **nouveaux mondes Gazebo**, non communiqués à l'avance. Ils
+conservent le principe des portes formées de deux plots, mais peuvent modifier le nombre de
+portes, leur position, leur écartement, l'orientation initiale du robot ou l'enchaînement du
+slalom. Votre logiciel ne doit donc pas dépendre de coordonnées écrites en dur ni de la
+connaissance d'un monde particulier.
+
+Le transfert sur le robot réel peut être proposé lors de la restitution si le matériel et le temps
+le permettent ; il ne remplace pas l'évaluation sur les mondes inédits.
 
 ## Objectifs
 
@@ -40,9 +45,11 @@ Votre programme doit :
 6. s'arrêter proprement à la fin du parcours ou lorsqu'une situation sûre ne peut plus être
    garantie.
 
-Le Limo est commandé par un message `geometry_msgs/Twist` sur `/cmd_vel`. Les mesures du
-lidar sont disponibles sur `/scan`. Les repères angulaires, limites de vitesse et dimensions
-précises du parcours seront donnés pendant le hackathon.
+Le Limo est commandé par un message `geometry_msgs/Twist` sur `/cmd_vel`. Les mesures du lidar
+sont disponibles sur `/scan`. Le package `limo_slalom` fournit le monde d'entraînement et le
+nœud `scan_observer`. Le README du dépôt explique comment créer un paquet ROS2, observer le
+`LaserScan` et publier une commande. Les limites de vitesse et les dimensions du parcours seront
+communiquées pendant le hackathon.
 
 ## Exigences de sécurité
 
@@ -77,6 +84,16 @@ Les éléments suivants sont attendus :
 - un superviseur de sécurité qui a priorité sur la commande nominale ;
 - un fichier launch qui démarre l'ensemble de votre application.
 
+L'architecture minimale recommandée sépare au moins la perception et la commande :
+
+```text
+/scan -> perception -> information de cible -> commande -> /cmd_vel
+```
+
+Le nœud de perception ne doit pas publier de commande de mouvement. Une seule sortie, le nœud de
+commande ou de sécurité, publie sur `/cmd_vel`. Vous pouvez choisir les messages intermédiaires,
+à condition de les documenter.
+
 Vous pouvez utiliser une loi proportionnelle ou un PID simple. Les paramètres doivent être
 centralisés et documentés. Pour chaque filtre ou régulateur, précisez le problème traité, les
 paramètres retenus et un exemple d'observation ayant conduit à ce réglage.
@@ -89,9 +106,9 @@ paramètres retenus et un exemple d'observation ayant conduit à ce réglage.
 | Exploration ROS2 et lidar | 5 h | Nœud d'observation et premières mesures exploitables |
 | Traitement du signal et détection | 7 h | Détection validée sur plusieurs configurations simulées |
 | Commande, états et sécurité | 7 h | Slalom partiel sûr en simulation |
-| Intégration et robustesse | 5 h | Parcours complet simulé via un launch unique |
-| Transfert sur robot réel | 3 h | Essais progressifs et réglages justifiés |
-| Finale et présentation | 2 h | Démonstration et restitution |
+| Intégration et robustesse | 5 h | Parcours complet sur le monde d'entraînement via un launch unique |
+| Généralisation | 3 h | Tests sur des variantes de parcours sans coordonnées codées en dur |
+| Finale et présentation | 2 h | Exécution sur mondes inédits et restitution |
 
 Ce planning est une proposition : votre équipe peut le modifier dans son backlog si elle en
 explique la raison.
@@ -177,21 +194,51 @@ Avant la finale, votre dépôt doit contenir :
 - le backlog final et `RETROSPECTIVE.md` ;
 - une courte vidéo de la simulation ou des essais si le temps le permet.
 
-La démonstration finale dure cinq minutes : lancement du système, parcours autonome et réponse
-aux questions techniques.
+La démonstration finale dure cinq minutes : lancement du système, exécution sur un monde inédit
+et réponse aux questions techniques.
 
-## Évaluation
+## Évaluation et classement
 
 | Critère | Points |
 |---|---:|
-| Sécurité et comportement d'arrêt | 4 |
-| Traitement lidar et robustesse de la détection | 4 |
-| Commande, machine à états et franchissement autonome | 4 |
-| Intégration ROS2, launch et qualité du dépôt Git | 3 |
+| Franchissement et généralisation sur les mondes inédits | 8 |
+| Sécurité et comportement d'arrêt | 3 |
+| Traitement lidar, commande et robustesse de la détection | 3 |
+| Intégration ROS2, launch et qualité du dépôt Git | 2 |
 | Organisation Agile, collaboration et traçabilité | 2 |
-| Démonstration, explication et recul technique | 3 |
+| Démonstration, explication et recul technique | 2 |
 | **Total** | **20** |
 
-La vitesse n'est qu'un critère secondaire. Une solution qui franchit moins de portes mais reste
-prédictible, sûre et expliquée obtiendra une meilleure évaluation qu'une solution rapide et
-fragile.
+### Protocole de finale
+
+Chaque monde de finale est fourni au moment de l'évaluation. Les équipes lancent leur application
+avec la commande documentée dans leur `README.md`. Les portes doivent être franchies dans l'ordre
+du parcours. Une porte n'est comptée que si le robot passe entre les deux plots sans collision ni
+intervention humaine.
+
+Une collision, une sortie durable du parcours, une perte de contrôle ou une intervention de
+sécurité arrête la manche. Les modalités pratiques (nombre de mondes, tentatives autorisées,
+limite de temps et dimensions) sont annoncées avant la finale.
+
+### Critère principal : portes franchies
+
+Le classement compare d'abord le **nombre total de portes valides franchies** sur les mondes de
+finale. Une équipe ayant franchi davantage de portes est toujours classée devant une équipe plus
+rapide ayant franchi moins de portes.
+
+### Critère secondaire : vitesse moyenne entre deux portes
+
+En cas d'égalité sur le nombre de portes valides, le départage utilise la vitesse moyenne entre
+deux portes successives valides. Pour un intervalle, l'arbitre calcule :
+
+```text
+vitesse moyenne = distance entre les centres des deux portes / durée entre leurs franchissements
+```
+
+La valeur de départage est la moyenne des intervalles valides de la manche. Elle n'est calculée
+que lorsqu'au moins deux portes ont été franchies. La vitesse est donc un critère secondaire :
+elle ne compense jamais une porte non franchie.
+
+Les 8 points de performance reflètent ce même ordre de priorité : franchissement fiable et
+généralisation avant vitesse. Une solution sûre, expliquée et robuste sur un monde inédit sera
+valorisée davantage qu'une solution réglée uniquement pour le monde d'entraînement.
