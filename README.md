@@ -178,3 +178,252 @@ Ajoutez au backlog des tests observables, par exemple :
 
 À chaque modification, conservez une branche Git courte, testez-la dans Gazebo, puis faites-la
 relire par un autre membre avant fusion dans `main`.
+
+## Tutoriel ROS2 : perception et commande
+
+Cette section montre comment construire une chaîne ROS2 minimale sans résoudre la détection des
+portes. Le principe est de découper le programme en deux nœuds :
+
+```text
+/scan ──> perception ──> /perception/heading_error ──> controller ──> /cmd_vel
+```
+
+Le nœud de perception transforme les mesures brutes du lidar en une information simple, ici une
+erreur de direction en radians. Le nœud de commande transforme cette erreur en vitesse. Le choix
+de l'algorithme qui détecte une porte est volontairement laissé à l'équipe.
+
+### 1. Créer un paquet Python
+
+Depuis `ros2_ws/src` :
+
+```bash
+ros2 pkg create mon_equipe_limo \
+  --build-type ament_python \
+  --dependencies rclpy sensor_msgs geometry_msgs std_msgs
+```
+
+Le paquet créé contient notamment `package.xml`, `setup.py` et le répertoire Python
+`mon_equipe_limo/`. Ajoutez les deux exécutables dans `setup.py` :
+
+```python
+entry_points={
+    'console_scripts': [
+        'perception = mon_equipe_limo.perception_node:main',
+        'controller = mon_equipe_limo.controller_node:main',
+    ],
+},
+```
+
+Le nom avant `=` est la commande utilisée avec `ros2 run`. Le nom après `=` indique le module
+Python et la fonction `main`.
+
+### 2. Observer le message lidar
+
+Avant de programmer, observez ce que publie le simulateur :
+
+```bash
+ros2 topic list
+ros2 topic echo /scan --once
+ros2 topic hz /scan
+ros2 interface show sensor_msgs/msg/LaserScan
+```
+
+`ranges[i]` est une distance en mètres. L'angle de cette mesure se calcule avec :
+
+```python
+angle = scan.angle_min + i * scan.angle_increment
+```
+
+Les valeurs `NaN`, `Inf`, ou hors de l'intervalle `[scan.range_min, scan.range_max]` ne doivent
+pas être utilisées. Dans le repère du robot, on peut convertir une mesure polaire valide en point
+cartésien :
+
+```python
+x = distance * math.cos(angle)  # avant du robot
+y = distance * math.sin(angle)  # gauche du robot
+```
+
+### 3. Écrire un nœud de perception
+
+Créez `mon_equipe_limo/perception_node.py`. Le squelette suivant reçoit chaque scan et publie
+l'interface que le contrôleur utilisera. La partie qui produit réellement `heading_error` est à
+concevoir par l'équipe.
+
+```python
+import math
+
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import LaserScan
+from std_msgs.msg import Float32
+
+
+class PerceptionNode(Node):
+    def __init__(self):
+        super().__init__('perception')
+        self.error_publisher = self.create_publisher(
+            Float32, '/perception/heading_error', 10)
+        self.create_subscription(LaserScan, '/scan', self.scan_callback, 10)
+
+    def scan_callback(self, scan):
+        valid_points = []
+        for i, distance in enumerate(scan.ranges):
+            if not math.isfinite(distance):
+                continue
+            if not scan.range_min <= distance <= scan.range_max:
+                continue
+
+            angle = scan.angle_min + i * scan.angle_increment
+            valid_points.append((
+                distance * math.cos(angle),
+                distance * math.sin(angle),
+            ))
+
+        # TODO: filtrer les points, reconnaître une porte et calculer heading_error.
+        # Quand une cible fiable est trouvée :
+        # self.error_publisher.publish(Float32(data=heading_error))
+        self.get_logger().debug(f'{len(valid_points)} points lidar valides')
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = PerceptionNode()
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+```
+
+Compilez après avoir ajouté le fichier :
+
+```bash
+cd ~/Limo_Slalom/ros2_ws
+colcon build --packages-select mon_equipe_limo
+source install/setup.bash
+ros2 run mon_equipe_limo perception
+```
+
+Le `TODO` ne doit pas être remplacé par une loi de commande. Son unique rôle est de publier une
+observation : par exemple une direction vers le milieu d'une porte et, si nécessaire, une mesure
+de confiance dans un second topic.
+
+### 4. Écrire un nœud de commande
+
+Créez `mon_equipe_limo/controller_node.py`. Ce nœud est indépendant du lidar : il ne connaît que
+l'erreur de direction fournie par la perception. Cette séparation permet de tester perception et
+commande séparément.
+
+```python
+from geometry_msgs.msg import Twist
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Float32
+
+
+class ControllerNode(Node):
+    def __init__(self):
+        super().__init__('controller')
+        self.declare_parameter('linear_speed', 0.15)
+        self.declare_parameter('angular_gain', 1.0)
+        self.declare_parameter('max_angular_speed', 0.8)
+        self.command_publisher = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.create_subscription(
+            Float32, '/perception/heading_error', self.error_callback, 10)
+
+    def error_callback(self, message):
+        gain = self.get_parameter('angular_gain').value
+        maximum = self.get_parameter('max_angular_speed').value
+
+        command = Twist()
+        command.linear.x = self.get_parameter('linear_speed').value
+        command.angular.z = max(-maximum, min(maximum, gain * message.data))
+        self.command_publisher.publish(command)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = ControllerNode()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.command_publisher.publish(Twist())
+        node.destroy_node()
+        rclpy.shutdown()
+```
+
+La loi ci-dessus est une première loi proportionnelle bornée :
+
+```text
+v = vitesse_linéaire
+ω = saturation(gain × erreur_de_direction)
+```
+
+Elle n'est pas suffisante pour le défi : l'équipe doit décider quand avancer, ralentir, tourner,
+s'arrêter et rechercher une porte. Ajoutez notamment une vitesse nulle lorsqu'aucune donnée de
+perception récente n'est disponible.
+
+### 5. Tester chaque brique avant de les relier
+
+Dans trois terminaux sourcés, démarrez l'arène, puis le contrôleur :
+
+```bash
+ros2 launch limo_slalom slalom_simulation.launch.py
+ros2 run mon_equipe_limo controller
+```
+
+Avant que la perception ne soit écrite, simulez une erreur de direction pendant un temps court :
+
+```bash
+ros2 topic pub --rate 5 /perception/heading_error std_msgs/msg/Float32 "{data: 0.2}"
+```
+
+Le Limo doit avancer lentement et tourner dans une direction. Interrompez la commande avec
+`Ctrl+C`. Essayez ensuite une valeur négative et vérifiez que le sens de rotation s'inverse.
+
+Pour contrôler les connexions ROS2 :
+
+```bash
+ros2 node list
+ros2 topic info /scan -v
+ros2 topic info /perception/heading_error -v
+ros2 topic info /cmd_vel -v
+ros2 topic echo /cmd_vel
+```
+
+N'utilisez pas `teleop_twist_keyboard` en même temps que votre contrôleur : les deux programmes
+publieraient sur `/cmd_vel`. Pendant les essais sur le robot réel, ajoutez un nœud de sécurité ou
+un état d'arrêt qui a priorité sur la commande nominale.
+
+### 6. Regrouper les nœuds dans un launch
+
+Lorsque les deux nœuds fonctionnent séparément, créez un fichier
+`mon_equipe_limo/launch/slalom.launch.py` pour les démarrer ensemble. Un launch minimal contient
+deux actions `Node` :
+
+```python
+from launch import LaunchDescription
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    return LaunchDescription([
+        Node(package='mon_equipe_limo', executable='perception', output='screen'),
+        Node(package='mon_equipe_limo', executable='controller', output='screen'),
+    ])
+```
+
+Installez les fichiers de lancement dans `setup.py`, puis reconstruisez. La dernière étape est de
+remplacer les tests manuels par la perception de porte, une machine à états et les protections de
+sécurité définies dans l'énoncé.
+
+Pour cela, ajoutez ces imports et cette entrée dans `data_files` :
+
+```python
+from glob import glob
+import os
+
+# Dans la liste data_files :
+(os.path.join('share', package_name, 'launch'),
+ glob(os.path.join('launch', '*.launch.py'))),
+```
